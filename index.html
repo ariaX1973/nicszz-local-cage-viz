@@ -1069,26 +1069,6 @@ html&gt;body{padding:0}&lt;/style&gt;
 
   function coords(rows, axis) { return rows.map(p =&gt; p[axis]); }
 
-  function projectedSaddleParabola(d, surfacePoints) {
-    const position = d.surfacePath.indexOf(d.saddleIndex);
-    if (position &lt; 0) return [surfacePoints[d.saddleIndex]];
-    const span = Math.max(1, Math.min(3, position, d.surfacePath.length - 1 - position));
-    const left = surfacePoints[d.surfacePath[position - span]];
-    const saddle = surfacePoints[d.saddleIndex];
-    const right = surfacePoints[d.surfacePath[position + span]];
-    const curve = [];
-    for (let step = 0; step &lt;= 32; step += 1) {
-      const t = -1 + (2 * step / 32);
-      const wLeft = 0.5 * t * (t - 1);
-      const wSaddle = 1 - t * t;
-      const wRight = 0.5 * t * (t + 1);
-      curve.push([0, 1, 2].map(axis =&gt;
-        wLeft * left[axis] + wSaddle * saddle[axis] + wRight * right[axis]
-      ));
-    }
-    return curve;
-  }
-
   function tracesFor(d) {
     const fg = color(&#x27;--foreground&#x27;);
     const muted = color(&#x27;--muted-foreground&#x27;);
@@ -1117,7 +1097,6 @@ html&gt;body{padding:0}&lt;/style&gt;
     const minimaPoints = d.surfaceMinima.map(i =&gt; surfacePoints[i]);
     const minimaValues = d.surfaceMinima.map(i =&gt; surfaceValues[i]);
     const saddlePoint = [surfacePoints[d.saddleIndex]];
-    const saddleParabola = projectedSaddleParabola(d, surfacePoints);
     const compactLabels = plot.clientWidth &lt; 520;
     const hoverText = d.values.map((value, i) =&gt;
       `NICSzz(local): ${value.toFixed(3)} ppm&lt;br&gt;` +
@@ -1175,11 +1154,6 @@ html&gt;body{padding:0}&lt;/style&gt;
         text:compactLabels ? [&#x27;C1&#x27;,&#x27;C2&#x27;] : [&#x27;minimum NICS cycle 1&#x27;,&#x27;minimum NICS cycle 2&#x27;],textposition:&#x27;top center&#x27;,textfont:{color:fg},
         customdata:minimaValues,
         hovertemplate:&#x27;%{text}&lt;br&gt;NICSzz(local): %{customdata:.3f} ppm&lt;extra&gt;&lt;/extra&gt;&#x27;,visible:roles.path,showlegend:false
-      },
-      {
-        type:&#x27;scatter3d&#x27;, mode:&#x27;lines&#x27;, name:&#x27;Parabole locale de selle&#x27;, meta:{role:&#x27;path&#x27;},
-        x:coords(saddleParabola,0),y:coords(saddleParabola,1),z:coords(saddleParabola,2),
-        line:{color:purple,width:3},hoverinfo:&#x27;skip&#x27;,visible:roles.path,showlegend:false
       },
       {
         type:&#x27;scatter3d&#x27;, mode:&#x27;markers&#x27;, name:&#x27;Point selle&#x27;, meta:{role:&#x27;path&#x27;},
