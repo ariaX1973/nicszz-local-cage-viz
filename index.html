@@ -1029,6 +1029,8 @@ html&gt;body{padding:0}&lt;/style&gt;
   &lt;/div&gt;
   &lt;div id=&quot;nics-selected-summary&quot; class=&quot;card&quot; aria-live=&quot;polite&quot;&gt;&lt;/div&gt;
   &lt;div id=&quot;nics-plot&quot; role=&quot;img&quot; aria-label=&quot;Surface tridimensionnelle NICSzz locale superposée à la topologie moléculaire&quot;&gt;&lt;/div&gt;
+  &lt;h3 id=&quot;nics-profile-title&quot;&gt;Profil NICSzz le long du chemin&lt;/h3&gt;
+  &lt;div id=&quot;nics-path-profile&quot; role=&quot;img&quot; aria-labelledby=&quot;nics-profile-title&quot;&gt;&lt;/div&gt;
   &lt;p id=&quot;nics-accessible-summary&quot; class=&quot;sr-only&quot;&gt;&lt;/p&gt;
 &lt;/div&gt;
 
@@ -1039,8 +1041,11 @@ html&gt;body{padding:0}&lt;/style&gt;
   #nics-method-summary { margin-bottom: 8px; }
   #nics-selected-summary { margin-bottom: 8px; }
   #nics-plot { width: 100%; height: 610px; min-height: 440px; }
+  #nics-profile-title { margin: 10px 0 0; }
+  #nics-path-profile { width: 100%; height: 260px; min-height: 230px; }
   @media (max-width: 520px) {
     #nics-plot { height: 500px; min-height: 420px; }
+    #nics-path-profile { height: 245px; min-height: 220px; }
   }
 &lt;/style&gt;
 
@@ -1049,6 +1054,7 @@ html&gt;body{padding:0}&lt;/style&gt;
 (() =&gt; {
   const root = document.getElementById(&#x27;nics-local-zz-viewer&#x27;);
   const plot = document.getElementById(&#x27;nics-plot&#x27;);
+  const profile = document.getElementById(&#x27;nics-path-profile&#x27;);
   const moleculeSelect = document.getElementById(&#x27;nics-molecule&#x27;);
   const summary = document.getElementById(&#x27;nics-selected-summary&#x27;);
   const accessible = document.getElementById(&#x27;nics-accessible-summary&#x27;);
@@ -1068,6 +1074,26 @@ html&gt;body{padding:0}&lt;/style&gt;
   }
 
   function coords(rows, axis) { return rows.map(p =&gt; p[axis]); }
+
+  function pathProfile(d) {
+    const pathPoints = d.surfacePath.map(index =&gt; d.surfacePoints[index]);
+    const distances = [0];
+    for (let index = 1; index &lt; pathPoints.length; index += 1) {
+      const previous = pathPoints[index - 1];
+      const current = pathPoints[index];
+      const segment = Math.hypot(
+        current[0] - previous[0],
+        current[1] - previous[1],
+        current[2] - previous[2]
+      );
+      distances.push(distances[index - 1] + segment);
+    }
+    return {
+      distances,
+      values: d.surfacePath.map(index =&gt; d.surfaceValues[index]),
+      saddlePosition: d.surfacePath.indexOf(d.saddleIndex)
+    };
+  }
 
   function tracesFor(d) {
     const fg = color(&#x27;--foreground&#x27;);
@@ -1174,6 +1200,7 @@ html&gt;body{padding:0}&lt;/style&gt;
     const min1 = d.surfaceValues[d.surfaceMinima[0]];
     const min2 = d.surfaceValues[d.surfaceMinima[1]];
     const compactView = plot.clientWidth &lt; 520;
+    const projectedPath = pathProfile(d);
     summary.innerHTML = `&lt;span class=&quot;text-muted&quot;&gt;${d.label}&lt;/span&gt; · min C1 &lt;strong class=&quot;tabular-nums&quot;&gt;${min1.toFixed(3)} ppm&lt;/strong&gt; · min C2 &lt;strong class=&quot;tabular-nums&quot;&gt;${min2.toFixed(3)} ppm&lt;/strong&gt; · selle &lt;strong class=&quot;tabular-nums&quot;&gt;${d.saddleValue.toFixed(3)} ppm&lt;/strong&gt; · Δ &lt;strong class=&quot;tabular-nums&quot;&gt;${d.saddleBarriers[0].toFixed(3)} / ${d.saddleBarriers[1].toFixed(3)} ppm&lt;/strong&gt;`;
     accessible.textContent = `${d.label}. Surface de ${d.surfacePoints.length} sommets interpolés à partir de ${d.points.length} points Bq. Minimum NICS du cycle 1 ${min1.toFixed(3)} ppm. Minimum NICS du cycle 2 ${min2.toFixed(3)} ppm. Point selle ${d.saddleValue.toFixed(3)} ppm. Barrières ${d.saddleBarriers[0].toFixed(3)} et ${d.saddleBarriers[1].toFixed(3)} ppm. Longueur du chemin minimax ${d.surfacePathLength.toFixed(2)} angströms.`;
     const layout = {
@@ -1189,6 +1216,40 @@ html&gt;body{padding:0}&lt;/style&gt;
       uirevision:d.key
     };
     Plotly.react(plot,tracesFor(d),layout,{responsive:true,displaylogo:false,scrollZoom:true,modeBarButtonsToRemove:[&#x27;lasso2d&#x27;,&#x27;select2d&#x27;]});
+
+    const profileTraces = [
+      {
+        type:&#x27;scatter&#x27;,mode:&#x27;lines+markers&#x27;,name:&#x27;Chemin NICSzz&#x27;,
+        x:projectedPath.distances,y:projectedPath.values,
+        line:{color:color(&#x27;--orange&#x27;),width:3},marker:{size:5,color:color(&#x27;--orange&#x27;)},
+        hovertemplate:&#x27;s = %{x:.2f} Å&lt;br&gt;NICSzz(local) = %{y:.3f} ppm&lt;extra&gt;Chemin&lt;/extra&gt;&#x27;,showlegend:false
+      },
+      {
+        type:&#x27;scatter&#x27;,mode:&#x27;markers&#x27;,name:&#x27;Minima&#x27;,
+        x:[projectedPath.distances[0],projectedPath.distances[projectedPath.distances.length - 1]],
+        y:[projectedPath.values[0],projectedPath.values[projectedPath.values.length - 1]],
+        marker:{size:9,color:color(&#x27;--green&#x27;),symbol:&#x27;diamond&#x27;,line:{color:fg,width:1}},
+        text:[&#x27;minimum cycle 1&#x27;,&#x27;minimum cycle 2&#x27;],
+        hovertemplate:&#x27;%{text}&lt;br&gt;s = %{x:.2f} Å&lt;br&gt;NICSzz(local) = %{y:.3f} ppm&lt;extra&gt;&lt;/extra&gt;&#x27;,showlegend:false
+      },
+      {
+        type:&#x27;scatter&#x27;,mode:&#x27;markers&#x27;,name:&#x27;Point selle&#x27;,
+        x:[projectedPath.distances[projectedPath.saddlePosition]],
+        y:[projectedPath.values[projectedPath.saddlePosition]],
+        marker:{size:7,color:color(&#x27;--purple&#x27;),symbol:&#x27;circle&#x27;,line:{color:fg,width:1}},
+        text:[&#x27;point selle&#x27;],
+        hovertemplate:&#x27;%{text}&lt;br&gt;s = %{x:.2f} Å&lt;br&gt;NICSzz(local) = %{y:.3f} ppm&lt;extra&gt;&lt;/extra&gt;&#x27;,showlegend:false
+      }
+    ];
+    const profileLayout = {
+      margin:{l:64,r:18,t:8,b:54},paper_bgcolor:&#x27;rgba(0,0,0,0)&#x27;,plot_bgcolor:&#x27;rgba(0,0,0,0)&#x27;,
+      font:{color:fg,size:12},showlegend:false,hovermode:&#x27;closest&#x27;,
+      hoverlabel:{bgcolor:color(&#x27;--popover&#x27;),font:{color:color(&#x27;--popover-foreground&#x27;)}},
+      xaxis:{title:&#x27;Distance cumulée sur le chemin, s (Å)&#x27;,color:fg,gridcolor:border,zerolinecolor:muted,nticks:compactView ? 4 : 7,automargin:true},
+      yaxis:{title:&#x27;NICSzz local (ppm)&#x27;,color:fg,gridcolor:border,zerolinecolor:muted,nticks:compactView ? 5 : 7,automargin:true},
+      uirevision:d.key
+    };
+    Plotly.react(profile,profileTraces,profileLayout,{responsive:true,displaylogo:false,displayModeBar:false});
   }
 
   function applyVisibility(role, visible) {
